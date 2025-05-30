@@ -11,29 +11,28 @@ const SCENE_CONFIG = {
     fov: 60, // 视场角，值越大视野越广
     near: 0.1, // 近平面距离
     far: 1000, // 远平面距离
-    position: [0, 0, 10] as [number, number, number], // 相机位置 [x, y, z]
-    lookAt: [0, 0, -10] as [number, number, number], // 相机观察点 [x, y, z]
+    position: [0, 30, 20] as [number, number, number], // 相机位置 [x, y, z]，y值增大使相机位置更高
+    lookAt: [0, 0, 0] as [number, number, number], // 相机观察点 [x, y, z]
   },
   // 花瓣配置
   petals: {
     count: 15, // 每个模型的花瓣数量，增加这个值可以增加花瓣数量
     scale: {
-      min: 1.5, // 最小缩放比例，增加这个值可以增大花瓣
-      max: 2.5, // 最大缩放比例，增加这个值可以增大花瓣
+      min: 5.0, // 最小缩放比例，增加这个值可以增大花瓣
+      max: 8.0, // 最大缩放比例，增加这个值可以增大花瓣
     },
     distribution: {
       radius: {
-        min: 6, // 最小分布半径，增加这个值可以让花瓣分布更广
-        max: 8, // 最大分布半径
+        min: 8, // 最小分布半径，增加这个值可以让花瓣分布更广
+        max: 12, // 最大分布半径
       },
-      height: 6, // 垂直分布范围，增加这个值可以让花瓣分布更高
-      depth: 15, // 深度分布范围，增加这个值可以让花瓣分布更深
+      height: 15, // 垂直分布范围，增加这个值可以让花瓣分布更高
+      depth: 40, // 深度分布范围，增加这个值可以让花瓣分布更深
     },
     movement: {
-      horizontal: 0.02, // 水平移动速度，减小这个值可以让花瓣移动更慢
-      vertical: 0.02, // 垂直移动速度
-      forward: -0.08, // 前进速度，减小这个值可以让花瓣移动更慢
-      rotation: 0.008, // 旋转速度，减小这个值可以让花瓣旋转更慢
+      spiralSpeed: 0.2, // 螺旋运动速度
+      forwardSpeed: 0.3, // 向相机移动的速度
+      rotationSpeed: 0.02, // 旋转速度
     },
     colors: [
       0xff69b4, // 粉色
@@ -48,16 +47,20 @@ const SCENE_CONFIG = {
   lighting: {
     directional: {
       color: 0xffffff, // 方向光颜色
-      intensity: 3.0, // 光照强度，增加这个值可以让场景更亮
+      intensity: 4.0, // 光照强度，增加这个值可以让场景更亮
       position: [1, 1, 1] as [number, number, number], // 光源位置
     },
     ambient: {
       color: 0x404040, // 环境光颜色
-      intensity: 2.5, // 环境光强度
+      intensity: 3.0, // 环境光强度
     },
   },
   // 背景配置
   background: 0x000000, // 背景颜色
+  // 动画配置
+  animation: {
+    duration: 10000, // 动画总时长（毫秒）
+  },
 };
 
 const PETAL_MODELS = [
@@ -69,10 +72,11 @@ const PETAL_MODELS = [
 
 interface Petal {
   mesh: THREE.Object3D;
-  velocity: THREE.Vector3;
-  rotation: THREE.Vector3;
   scale: number;
   color: number;
+  spiralAngle: number; // 螺旋角度
+  spiralRadius: number; // 螺旋半径
+  spiralHeight: number; // 螺旋高度
 }
 
 export default function PetalTunnel() {
@@ -83,6 +87,8 @@ export default function PetalTunnel() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const animationFrameRef = useRef<number>(0);
   const petalsRef = useRef<Petal[]>([]);
+  const startTimeRef = useRef<number>(0);
+  const [animationState, setAnimationState] = useState<'idle' | 'expanding' | 'playing' | 'fading'>('idle');
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -149,6 +155,7 @@ export default function PetalTunnel() {
                   emissive: 0x000000,
                   flatShading: false,
                   side: THREE.DoubleSide,
+                  transparent: true,
                 });
               }
             });
@@ -159,38 +166,29 @@ export default function PetalTunnel() {
               const scale =
                 SCENE_CONFIG.petals.scale.min +
                 Math.random() * (SCENE_CONFIG.petals.scale.max - SCENE_CONFIG.petals.scale.min);
-              petal.scale.set(scale, scale, scale);
-
-              // 随机位置
-              const angle = Math.random() * Math.PI * 2;
-              const radius =
+              
+              // 初始位置在远处
+              petal.position.set(0, 0, -SCENE_CONFIG.petals.distribution.depth);
+              petal.scale.setScalar(scale);
+              
+              // 计算螺旋参数
+              const spiralAngle = Math.random() * Math.PI * 2;
+              const spiralRadius = 
                 SCENE_CONFIG.petals.distribution.radius.min +
-                Math.random() *
-                  (SCENE_CONFIG.petals.distribution.radius.max -
-                    SCENE_CONFIG.petals.distribution.radius.min);
-              const x = Math.cos(angle) * radius;
-              const y = (Math.random() - 0.5) * SCENE_CONFIG.petals.distribution.height;
-              const z = -Math.random() * SCENE_CONFIG.petals.distribution.depth;
-              petal.position.set(x, y, z);
-
+                Math.random() * (SCENE_CONFIG.petals.distribution.radius.max - SCENE_CONFIG.petals.distribution.radius.min);
+              const spiralHeight = (Math.random() - 0.5) * SCENE_CONFIG.petals.distribution.height;
+              
               const color = SCENE_CONFIG.petals.colors[
                 Math.floor(Math.random() * SCENE_CONFIG.petals.colors.length)
               ];
 
               loadedPetals.push({
                 mesh: petal,
-                velocity: new THREE.Vector3(
-                  (Math.random() - 0.5) * SCENE_CONFIG.petals.movement.horizontal,
-                  (Math.random() - 0.5) * SCENE_CONFIG.petals.movement.vertical,
-                  SCENE_CONFIG.petals.movement.forward
-                ),
-                rotation: new THREE.Vector3(
-                  Math.random() * SCENE_CONFIG.petals.movement.rotation,
-                  Math.random() * SCENE_CONFIG.petals.movement.rotation,
-                  Math.random() * SCENE_CONFIG.petals.movement.rotation
-                ),
                 scale,
                 color,
+                spiralAngle,
+                spiralRadius,
+                spiralHeight,
               });
             }
             resolve();
@@ -209,33 +207,43 @@ export default function PetalTunnel() {
       loadedPetals.forEach((petal) => scene.add(petal.mesh));
       petalsRef.current = loadedPetals;
       setLoading(false);
+      // 自动开始动画
+      setAnimationState('expanding');
+      startTimeRef.current = Date.now();
     });
 
     // 动画循环
     function animate() {
       if (!sceneRef.current || !cameraRef.current || !rendererRef.current) return;
 
-      // 更新花瓣位置和旋转
-      petalsRef.current.forEach((petal) => {
-        petal.mesh.position.add(petal.velocity);
-        petal.mesh.rotation.x += petal.rotation.x;
-        petal.mesh.rotation.y += petal.rotation.y;
-        petal.mesh.rotation.z += petal.rotation.z;
+      const currentTime = Date.now();
+      const elapsedTime = currentTime - startTimeRef.current;
+      const progress = Math.min(elapsedTime / SCENE_CONFIG.animation.duration, 1);
 
-        // 如果花瓣飞出视野，重置位置
-        if (petal.mesh.position.z > 5) {
-          const angle = Math.random() * Math.PI * 2;
-          const radius =
-            SCENE_CONFIG.petals.distribution.radius.min +
-            Math.random() *
-              (SCENE_CONFIG.petals.distribution.radius.max -
-                SCENE_CONFIG.petals.distribution.radius.min);
-          petal.mesh.position.set(
-            Math.cos(angle) * radius,
-            (Math.random() - 0.5) * SCENE_CONFIG.petals.distribution.height,
-            -SCENE_CONFIG.petals.distribution.depth
-          );
-        }
+      // 更新花瓣位置
+      petalsRef.current.forEach((petal) => {
+        // 计算螺旋运动
+        const time = elapsedTime / 1000; // 转换为秒
+        const spiralAngle = petal.spiralAngle + time * SCENE_CONFIG.petals.movement.spiralSpeed;
+        
+        // 计算当前半径 - 从0开始逐渐增大
+        const currentRadius = petal.spiralRadius * progress;
+        
+        // 计算当前高度 - 从0开始逐渐增大，但限制在较低的位置
+        const currentHeight = petal.spiralHeight * progress * 0.5; // 减小高度变化
+        
+        // 计算当前深度 - 从远处向近处移动
+        const currentDepth = -SCENE_CONFIG.petals.distribution.depth * (1 - progress);
+        
+        // 更新位置 - 使用螺旋公式
+        petal.mesh.position.x = Math.cos(spiralAngle) * currentRadius;
+        petal.mesh.position.y = currentHeight;
+        petal.mesh.position.z = currentDepth;
+        
+        // 更新旋转 - 让花瓣始终面向运动方向
+        petal.mesh.rotation.x = Math.atan2(currentHeight, currentDepth);
+        petal.mesh.rotation.y = spiralAngle;
+        petal.mesh.rotation.z = Math.atan2(currentRadius, currentDepth);
       });
 
       rendererRef.current.render(sceneRef.current, cameraRef.current);
