@@ -1,0 +1,13 @@
+# Blender 4.4.3 MTL File: '123.blend'
+# www.blender.org
+
+newmtl 3d66-VRayMtl-20557473-024.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd 3d66Model-20557473-files-001.jpg
+map_Bump -bm 1.000000 3d66-VRayNormalMap-20557473-007
