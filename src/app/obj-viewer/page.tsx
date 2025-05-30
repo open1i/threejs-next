@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OBJLoader, OrbitControls } from "three-stdlib";
 
@@ -8,6 +8,8 @@ const MODEL_PATH = "/models/flower1.obj";
 
 export default function ObjViewer() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [modelColor, setModelColor] = useState("#2194ce");
+  const [modelObject, setModelObject] = useState<THREE.Object3D | null>(null);
 
   useEffect(() => {
     const width = mountRef.current?.clientWidth || window.innerWidth;
@@ -53,7 +55,7 @@ export default function ObjViewer() {
         object.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             child.material = new THREE.MeshPhongMaterial({
-              color: 0x2194ce,
+              color: new THREE.Color(modelColor),
               specular: 0x111111,
               shininess: 100,
               emissive: 0x000000,
@@ -73,6 +75,7 @@ export default function ObjViewer() {
         object.position.sub(center.multiplyScalar(scale));
 
         scene.add(object);
+        setModelObject(object);
         animate();
       },
       (xhr) => {
@@ -98,10 +101,35 @@ export default function ObjViewer() {
     };
   }, []);
 
+  // 更新模型颜色
+  useEffect(() => {
+    if (modelObject) {
+      modelObject.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhongMaterial) {
+          child.material.color.set(modelColor);
+        }
+      });
+    }
+  }, [modelColor, modelObject]);
+
   return (
-    <div
-      ref={mountRef}
-      style={{ width: "100vw", height: "100vh", overflow: "hidden" }}
-    />
+    <div className="relative w-screen h-screen">
+      <div
+        ref={mountRef}
+        className="absolute inset-0"
+        style={{ width: "100%", height: "100%" }}
+      />
+      <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          选择模型颜色
+        </label>
+        <input
+          type="color"
+          value={modelColor}
+          onChange={(e) => setModelColor(e.target.value)}
+          className="w-full h-10 cursor-pointer"
+        />
+      </div>
+    </div>
   );
 } 

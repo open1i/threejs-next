@@ -29,6 +29,9 @@ export default function RootLayout({
             <Link href="/obj-viewer" className="hover:text-gray-300">
               OBJ Viewer
             </Link>
+            <Link href="/petal-tunnel" className="hover:text-gray-300">
+              Petal Tunnel
+            </Link>
           </div>
         </nav>
         <main>{children}</main>
